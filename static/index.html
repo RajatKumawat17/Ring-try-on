@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ring Try-On API Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .preview-container {
+            position: relative;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .hand-preview {
+            width: 100%;
+            max-height: 500px;
+            object-fit: contain;
+        }
+        .ring-preview {
+            max-width: 100px;
+            max-height: 100px;
+            object-fit: contain;
+            border: 1px solid #ddd;
+            padding: 5px;
+            cursor: pointer;
+        }
+        .selected-ring {
+            border: 3px solid #0d6efd;
+        }
+        .slider-container {
+            margin: 15px 0;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .slider-value {
+            font-weight: bold;
+        }
+        .finger-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #loadingIndicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingIndicator">
+        <div class="loading-content">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Processing your image...</p>
+        </div>
+    </div>
+
+    <div class="container mt-4 mb-5">
+        <h1 class="text-center mb-4">Ring Try-On Service</h1>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Upload Your Hand Image</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="handImageUpload" class="form-label">Select Hand Image</label>
+                            <input class="form-control" type="file" id="handImageUpload" accept=".jpg,.jpeg,.png">
+                        </div>
+                        
+                        <div class="preview-container" id="handPreviewContainer">
+                            <img id="handPreview" class="hand-preview d-none" alt="Hand Preview">
+                        </div>
+                        
+                        <div id="handAnalysisMessage" class="alert alert-info d-none"></div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5>Result</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="resultContainer" class="preview-container">
+                            <img id="resultPreview" class="hand-preview d-none" alt="Result Preview">
+                        </div>
+                        <div id="resultMessage" class="alert alert-info d-none"></div>
+                        <button id="downloadBtn" class="btn btn-success mt-3 d-none">Download Result</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Select Ring</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="ringUpload" class="form-label">Upload Your Own Ring (PNG with transparency)</label>
+                            <input class="form-control" type="file" id="ringUpload" accept=".png">
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6>Or Choose from Available Rings:</h6>
+                            <div id="availableRings" class="d-flex flex-wrap gap-2 mt-2">
+                                <!-- Available rings will be loaded here -->
+                                <div class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="small">Loading rings...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5>Adjustment Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Select Finger</label>
+                            <select id="fingerSelect" class="form-select">
+                                <option value="Thumb">Thumb</option>
+                                <option value="Index">Index</option>
+                                <option value="Middle" selected>Middle</option>
+                                <option value="Ring">Ring</option>
+                                <option value="Pinky">Pinky</option>
+                            </select>
+                        </div>
+                        
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>Ring Width</span>
+                                <span class="slider-value" id="ringWidthValue">100</span>
+                            </div>
+                            <input type="range" class="form-range" id="ringWidthSlider" min="20" max="200" value="100">
+                        </div>
+                        
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>Ring Height</span>
+                                <span class="slider-value" id="ringHeightValue">50</span>
+                            </div>
+                            <input type="range" class="form-range" id="ringHeightSlider" min="10" max="100" value="50">
+                        </div>
+                        
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>X Offset</span>
+                                <span class="slider-value" id="xOffsetValue">0</span>
+                            </div>
+                            <input type="range" class="form-range" id="xOffsetSlider" min="-100" max="100" value="0">
+                        </div>
+                        
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>Y Offset</span>
+                                <span class="slider-value" id="yOffsetValue">0</span>
+                            </div>
+                            <input type="range" class="form-range" id="yOffsetSlider" min="-100" max="100" value="0">
+                        </div>
+                        
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>Rotation (degrees)</span>
+                                <span class="slider-value" id="rotationValue">0°</span>
+                            </div>
+                            <input type="range" class="form-range" id="rotationSlider" min="-180" max="180" value="0">
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button id="tryOnBtn" class="btn btn-primary w-100" disabled>Try On Ring</button>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoUpdateCheck">
+                                <label class="form-check-label" for="autoUpdateCheck">
+                                    Auto-update on adjustment change
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4" id="measurementsCard">
+                    <div class="card-header">
+                        <h5>Hand Measurements</h5>
+                    </div>
+                    <div class="card-body">
+                        <button id="measureBtn" class="btn btn-outline-primary w-100 mb-3" disabled>Analyze Hand Size</button>
+                        <div id="measurementsResult" class="d-none">
+                            <h6>Ring Finger Measurements:</h6>
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Estimated Ring Size
+                                    <span id="estimatedRingSize" class="badge bg-primary rounded-pill">-</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Width at Base (px)
+                                    <span id="fingerWidth" class="badge bg-secondary rounded-pill">-</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Length (px)
+                                    <span id="fingerLength" class="badge bg-secondary rounded-pill">-</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API URL - replace with your actual API endpoint
+        const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+        
+        // State variables
+        let handImagePath = null;
+        let selectedRingId = null;
+        let customRingFile = null;
+        let fingerPositions = null;
+        let resultImageUrl = null;
+        
+        // DOM Elements
+        const handImageUpload = document.getElementById('handImageUpload');
+        const handPreview = document.getElementById('handPreview');
+        const handPreviewContainer = document.getElementById('handPreviewContainer');
+        const handAnalysisMessage = document.getElementById('handAnalysisMessage');
+        const ringUpload = document.getElementById('ringUpload');
+        const availableRings = document.getElementById('availableRings');
+        const fingerSelect = document.getElementById('fingerSelect');
+        const ringWidthSlider = document.getElementById('ringWidthSlider');
+        const ringHeightSlider = document.getElementById('ringHeightSlider');
+        const xOffsetSlider = document.getElementById('xOffsetSlider');
+        const yOffsetSlider = document.getElementById('yOffsetSlider');
+        const rotationSlider = document.getElementById('rotationSlider');
+        const ringWidthValue = document.getElementById('ringWidthValue');
+        const ringHeightValue = document.getElementById('ringHeightValue');
+        const xOffsetValue = document.getElementById('xOffsetValue');
+        const yOffsetValue = document.getElementById('yOffsetValue');
+        const rotationValue = document.getElementById('rotationValue');
+        const tryOnBtn = document.getElementById('tryOnBtn');
+        const resultPreview = document.getElementById('resultPreview');
+        const resultMessage = document.getElementById('resultMessage');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const autoUpdateCheck = document.getElementById('autoUpdateCheck');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const measureBtn = document.getElementById('measureBtn');
+        const measurementsResult = document.getElementById('measurementsResult');
+        const estimatedRingSize = document.getElementById('estimatedRingSize');
+        const fingerWidth = document.getElementById('fingerWidth');
+        const fingerLength = document.getElementById('fingerLength');
+        
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            // Load available rings
+            loadAvailableRings();
+            
+            // Set up event listeners
+            handImageUpload.addEventListener('change', handleHandImageUpload);
+            ringUpload.addEventListener('change', handleRingUpload);
+            tryOnBtn.addEventListener('click', handleTryOn);
+            downloadBtn.addEventListener('click', handleDownload);
+            measureBtn.addEventListener('click', handleMeasureHand);
+            
+            // Slider value updates
+            ringWidthSlider.addEventListener('input', updateSliderValue);
+            ringHeightSlider.addEventListener('input', updateSliderValue);
+            xOffsetSlider.addEventListener('input', updateSliderValue);
+            yOffsetSlider.addEventListener('input', updateSliderValue);
+            rotationSlider.addEventListener('input', updateSliderValue);
+            
+            // Auto-update on adjustment change
+            const sliders = [ringWidthSlider, ringHeightSlider, xOffsetSlider, yOffsetSlider, rotationSlider];
+            sliders.forEach(slider => {
+                slider.addEventListener('change', () => {
+                    if (autoUpdateCheck.checked) {
+                        handleTryOn();
+                    }
+                });
+            });
+            
+            fingerSelect.addEventListener('change', () => {
+                if (autoUpdateCheck.checked) {
+                    handleTryOn();
+                }
+                
+                // Update slider positions based on finger selection if we have finger positions
+                updateControlsForSelectedFinger();
+            });
+        });
+        
+        // Helper Functions
+        function updateSliderValue(e) {
+            const sliderId = e.target.id;
+            const valueId = sliderId.replace('Slider', 'Value');
+            const valueElement = document.getElementById(valueId);
+            
+            if (sliderId === 'rotationSlider') {
+                valueElement.textContent = `${e.target.value}°`;
+            } else {
+                valueElement.textContent = e.target.value;
+            }
+        }
+        
+        function showLoading() {
+            loadingIndicator.style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+        }
+        
+        function showMessage(element, message, type) {
+            element.textContent = message;
+            element.className = `alert alert-${type}`;
+            element.classList.remove('d-none');
+        }
+        
+        function hideMessage(element) {
+            element.classList.add('d-none');
+        }
+        
+        // API Functions
+        async function loadAvailableRings() {
+            try {
+                const response = await fetch(`${API_URL}/api/rings`);
+                const data = await response.json();
+                
+                if (data.rings && data.rings.length > 0) {
+                    // Clear loading message
+                    availableRings.innerHTML = '';
+                    
+                    // Add rings
+                    data.rings.forEach(ring => {
+                        const ringElement = document.createElement('div');
+                        ringElement.classList.add('text-center');
+                        
+                        const imgElement = document.createElement('img');
+                        imgElement.src = `${API_URL}/api/results/${ring.id}.png`;
+                        imgElement.alt = ring.name;
+                        imgElement.classList.add('ring-preview');
+                        imgElement.dataset.ringId = ring.id;
+                        imgElement.addEventListener('click', () => {
+                            selectRing(ring.id, imgElement);
+                        });
+                        
+                        const nameElement = document.createElement('p');
+                        nameElement.classList.add('small', 'mt-1');
+                        nameElement.textContent = ring.name;
+                        
+                        ringElement.appendChild(imgElement);
+                        ringElement.appendChild(nameElement);
+                        availableRings.appendChild(ringElement);
+                    });
+                } else {
+                    availableRings.innerHTML = '<p class="text-muted">No rings available. Please upload your own.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading available rings:', error);
+                availableRings.innerHTML = '<p class="text-danger">Error loading rings. Please try again later.</p>';
+            }
+        }
+        
+        async function handleHandImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                // Show loading
+                showLoading();
+                
+                // Display preview
+                handPreview.src = URL.createObjectURL(file);
+                handPreview.classList.remove('d-none');
+                
+                // Clear any previous finger positions
+                removeFingerDots();
+                
+                // Clear previous results
+                resultPreview.classList.add('d-none');
+                downloadBtn.classList.add('d-none');
+                hideMessage(resultMessage);
+                
+                // Analyze hand image
+                const formData = new FormData();
+                formData.append('hand_image', file);
+                
+                const response = await fetch(`${API_URL}/api/analyze`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    handImagePath = data.image_path;
+                    fingerPositions = data.finger_positions;
+                    
+                    // Show analysis message
+                    showMessage(handAnalysisMessage, 'Hand detected successfully! You can now select a ring and adjust positioning.', 'success');
+                    
+                    // Enable buttons
+                    tryOnBtn.disabled = false;
+                    measureBtn.disabled = false;
+                    
+                    // Show finger position markers
+                    showFingerPositions();
+                    
+                    // Set initial control positions based on selected finger
+                    updateControlsForSelectedFinger();
+                } else {
+                    showMessage(handAnalysisMessage, data.error || 'Failed to analyze hand.', 'danger');
+                    tryOnBtn.disabled = true;
+                    measureBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('Error analyzing hand image:', error);
+                showMessage(handAnalysisMessage, 'An error occurred. Please try again.', 'danger');
+                tryOnBtn.disabled = true;
+                measureBtn.disabled = true;
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        function handleRingUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Clear previous ring selection
+            clearRingSelection();
+            
+            // Store custom ring file
+            customRingFile = file;
+            selectedRingId = null;
+            
+            // Enable try-on button if hand image is also uploaded
+            if (handImagePath) {
+                tryOnBtn.disabled = false;
+            }
+        }
+        
+        function selectRing(ringId, element) {
+            // Clear previous ring selection
+            clearRingSelection();
+            
+            // Set new selection
+            selectedRingId = ringId;
+            element.classList.add('selected-ring');
+            
+            // Clear custom ring file
+            ringUpload.value = '';
+            customRingFile = null;
+            
+            // Enable try-on button if hand image is also uploaded
+            if (handImagePath) {
+                tryOnBtn.disabled = false;
+            }
+        }
+        
+        function clearRingSelection() {
+            const allRings = document.querySelectorAll('.ring-preview');
+            allRings.forEach(ring => ring.classList.remove('selected-ring'));
+            selectedRingId = null;
+        }
+        
+        async function handleTryOn() {
+            if (!handImagePath || (!selectedRingId && !customRingFile)) {
+                showMessage(resultMessage, 'Please select both a hand image and a ring.', 'warning');
+                return;
+            }
+            
+            try {
+                showLoading();
+                
+                const formData = new FormData();
+                formData.append('hand_image_path', handImagePath);
+                
+                if (selectedRingId) {
+                    formData.append('ring_id', selectedRingId);
+                } else if (customRingFile) {
+                    formData.append('ring_image', customRingFile);
+                }
+                
+                // Add adjustment parameters
+                formData.append('finger', fingerSelect.value);
+                formData.append('ring_width', ringWidthSlider.value);
+                formData.append('ring_height', ringHeightSlider.value);
+                formData.append('x_offset', xOffsetSlider.value);
+                formData.append('y_offset', yOffsetSlider.value);
+                formData.append('rotation', rotationSlider.value);
+                
+                const response = await fetch(`${API_URL}/api/try-on`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultImageUrl = data.result_image_url;
+                    
+                    // Show result image
+                    resultPreview.src = `${API_URL}${resultImageUrl}`;
+                    resultPreview.classList.remove('d-none');
+                    downloadBtn.classList.remove('d-none');
+                    hideMessage(resultMessage);
+                } else {
+                    showMessage(resultMessage, data.error || 'Failed to process the image.', 'danger');
+                }
+            } catch (error) {
+                console.error('Error in try-on process:', error);
+                showMessage(resultMessage, 'An error occurred. Please try again.', 'danger');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        function handleDownload() {
+            if (!resultImageUrl) return;
+            
+            const link = document.createElement('a');
+            link.href = `${API_URL}${resultImageUrl}`;
+            link.download = 'ring-try-on-result.jpg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function showFingerPositions() {
+            if (!fingerPositions) return;
+            
+            // Remove any existing dots
+            removeFingerDots();
+            
+            // Get the preview image dimensions
+            const previewRect = handPreview.getBoundingClientRect();
+            const containerRect = handPreviewContainer.getBoundingClientRect();
+            
+            // Calculate scale factors
+            const scaleX = previewRect.width / handPreview.naturalWidth;
+            const scaleY = previewRect.height / handPreview.naturalHeight;
+            
+            // Add dots for each finger position
+            for (const [fingerName, position] of Object.entries(fingerPositions)) {
+                const dot = document.createElement('div');
+                dot.classList.add('finger-dot');
+                dot.dataset.finger = fingerName;
+                
+                // Position the dot relative to the image
+                const x = position.midpoint.x * scaleX;
+                const y = position.midpoint.y * scaleY;
+                
+                // Adjust for the container position
+                dot.style.left = `${x}px`;
+                dot.style.top = `${y}px`;
+                
+                // Add a tooltip
+                dot.title = fingerName;
+                
+                // Highlight the selected finger
+                if (fingerName === fingerSelect.value) {
+                    dot.style.backgroundColor = 'green';
+                    dot.style.width = '12px';
+                    dot.style.height = '12px';
+                }
+                
+                handPreviewContainer.appendChild(dot);
+            }
+        }
+        
+        function removeFingerDots() {
+            const dots = document.querySelectorAll('.finger-dot');
+            dots.forEach(dot => dot.remove());
+        }
+        
+        function updateControlsForSelectedFinger() {
+            if (!fingerPositions) return;
+            
+            const selectedFinger = fingerSelect.value;
+            const fingerPosition = fingerPositions[selectedFinger];
+            
+            if (fingerPosition) {
+                // Update slider positions based on finger width
+                const fingerWidth = Math.max(20, Math.min(200, Math.round(fingerPosition.width * 1.5)));
+                ringWidthSlider.value = fingerWidth;
+                ringWidthValue.textContent = fingerWidth;
+                
+                const fingerHeight = Math.max(10, Math.min(100, Math.round(fingerPosition.width * 0.6)));
+                ringHeightSlider.value = fingerHeight;
+                ringHeightValue.textContent = fingerHeight;
+                
+                // Reset offsets
+                xOffsetSlider.value = 0;
+                yOffsetSlider.value = 0;
+                xOffsetValue.textContent = '0';
+                yOffsetValue.textContent = '0';
+                
+                // Set rotation angle to match finger angle
+                const rotation = Math.round(fingerPosition.angle);
+                rotationSlider.value = rotation;
+                rotationValue.textContent = `${rotation}°`;
+                
+                // Update finger position indicators
+                showFingerPositions();
+            }
+        }
+        
+        async function handleMeasureHand() {
+            if (!handImagePath) {
+                showMessage(resultMessage, 'Please upload a hand image first.', 'warning');
+                return;
+            }
+            
+            try {
+                showLoading();
+                
+                const formData = new FormData();
+                formData.append('hand_image', handImageUpload.files[0]);
+                
+                const response = await fetch(`${API_URL}/api/measure`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Show measurement results
+                    measurementsResult.classList.remove('d-none');
+                    
+                    // Update ring finger measurements
+                    const ringFingerData = data.finger_measurements.Ring;
+                    if (ringFingerData) {
+                        estimatedRingSize.textContent = ringFingerData.estimated_ring_size;
+                        fingerWidth.textContent = ringFingerData.width_at_base.toFixed(1);
+                        fingerLength.textContent = ringFingerData.total_length.toFixed(1);
+                    }
+                } else {
+                    showMessage(resultMessage, data.error || 'Failed to measure hand.', 'danger');
+                }
+            } catch (error) {
+                console.error('Error measuring hand:', error);
+                showMessage(resultMessage, 'An error occurred during measurement. Please try again.', 'danger');
+            } finally {
+                hideLoading();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -3,3 +3,7 @@ mediapipe
 numpy
 Pillow
 setuptools
+flask
+flask-cors
+werkzeug
+uuid
